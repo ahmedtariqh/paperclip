@@ -13,6 +13,7 @@ describe("Lifecycle inbox test harness", () => {
     const event: ResourceLifecycleEvent = { id: "1", companyId: "a", resourceType: "agent", resourceId: "agent", action: "create", createdAt: new Date(0).toISOString() };
     harness.seed({ lifecycleEvents: [event, { ...event, id: "2", action: "pause" }, { ...event, id: "3", companyId: "b" }] });
     expect(await harness.ctx.events.listLifecycle("a")).toEqual([event]);
+    expect(await harness.ctx.events.listLifecycle("a", 100, "1")).toEqual([]);
     expect(await harness.ctx.events.listLifecycle("a")).toEqual([event]);
     await expect(harness.ctx.events.acknowledgeLifecycle("a", "2")).rejects.toThrow("earlier lifecycle events");
     await expect(harness.ctx.events.acknowledgeLifecycle("a", "3")).rejects.toThrow("not found");

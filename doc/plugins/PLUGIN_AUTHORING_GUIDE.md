@@ -28,7 +28,7 @@ It is intentionally narrower than [PLUGIN_SPEC.md](./PLUGIN_SPEC.md). The spec i
 ## Durable resource lifecycle inbox
 
 Plugins with `events.subscribe` can read durable, company-scoped resource hooks
-through `ctx.events.listLifecycle(companyId, limit?)` and acknowledge successful
+through `ctx.events.listLifecycle(companyId, limit?, afterId?)` and acknowledge successful
 work with `ctx.events.acknowledgeLifecycle(companyId, eventId)`. Use an existing
 plugin job to poll each configured company; the host checks invocation scope and whether
 the plugin is ready and enabled for that company. These methods are separate
@@ -55,6 +55,11 @@ keys, then acknowledge only after successful completion. Load current authorized
 agent/project/workspace data before acting; the journal contains no configuration
 snapshots, repository credentials, or deletion authority. For offline plugin tests,
 seed `lifecycleEvents` with `createTestHarness().seed()`.
+
+Lifecycle polls can page past failed resources using the last returned event id as
+`afterId`. Reset `afterId` at the start of every polling sweep: it is a page
+cursor, never a persisted high-water mark. This retries failures and includes
+transactions that commit later with lower ids.
 
 ## External object reference providers
 

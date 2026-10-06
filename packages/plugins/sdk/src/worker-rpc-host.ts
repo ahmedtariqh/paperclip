@@ -525,8 +525,8 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
       },
 
       events: {
-        async listLifecycle(companyId: string, limit?: number) {
-          return callHost("events.listLifecycle", { companyId, limit });
+        async listLifecycle(companyId: string, limit?: number, afterId?: string) {
+          return callHost("events.listLifecycle", { companyId, limit, afterId });
         },
         async acknowledgeLifecycle(companyId: string, eventId: string) {
           await callHost("events.acknowledgeLifecycle", { companyId, eventId });

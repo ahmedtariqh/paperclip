@@ -1,5 +1,5 @@
 {
-  "id": "8f4d1f59-8251-40e4-84bd-49bd04367e75",
+  "id": "2f1c5aa1-f2a8-4c8e-adae-32abda705464",
   "prevId": "0eac674e-f69a-4f25-b800-3be01b8fd28d",
   "version": "7",
   "dialect": "postgresql",
@@ -39451,6 +39451,39 @@
           "columns": [
             {
               "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "resource_lifecycle_events_resource_order_idx": {
+          "name": "resource_lifecycle_events_resource_order_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "resource_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "resource_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

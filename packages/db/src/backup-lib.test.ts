@@ -75,6 +75,32 @@ describe("createBufferedTextFileWriter", () => {
 });
 
 describeEmbeddedPostgres("runDatabaseBackup", () => {
+  it("preserves validated and NOT VALID checks in JavaScript backups", async () => {
+    const source = await createTempDatabase();
+    const target = await createSiblingDatabase(source, "check_restore_target");
+    const sourceSql = postgres(source, { max: 1, onnotice: () => {} });
+    const targetSql = postgres(target, { max: 1, onnotice: () => {} });
+    try {
+      await sourceSql.unsafe(`
+        CREATE SCHEMA fixture;
+        CREATE TABLE fixture.checked (value integer CONSTRAINT "positive value" CHECK (value > 0));
+        INSERT INTO fixture.checked VALUES (1);
+        ALTER TABLE fixture.checked ADD CONSTRAINT below_zero CHECK (value < 0) NOT VALID;
+      `);
+      const backup = await runDatabaseBackup({ connectionString: source, backupDir: createTempDir("check-backup-"), backupEngine: "javascript", retention: { dailyDays: 7, weeklyWeeks: 4, monthlyMonths: 1 } });
+      await runDatabaseRestore({ connectionString: target, backupFile: backup.backupFile });
+      expect(await targetSql`SELECT value FROM fixture.checked`).toEqual([{ value: 1 }]);
+      expect(await targetSql`SELECT conname, convalidated FROM pg_constraint WHERE conrelid = 'fixture.checked'::regclass ORDER BY conname`)
+        .toEqual([{ conname: "below_zero", convalidated: false }, { conname: "positive value", convalidated: true }]);
+      await expect(targetSql`INSERT INTO fixture.checked VALUES (2)`).rejects.toThrow("below_zero");
+      await targetSql.unsafe('ALTER TABLE fixture.checked DROP CONSTRAINT below_zero');
+      await expect(targetSql`INSERT INTO fixture.checked VALUES (-1)`).rejects.toThrow("positive value");
+    } finally {
+      await sourceSql.end();
+      await targetSql.end();
+    }
+  }, 30_000);
+
   it(
     "keeps the newest backup for each retained calendar month",
     async () => {

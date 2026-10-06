@@ -1146,7 +1146,7 @@ describe("Durable lifecycle inbox RPC", () => {
     const event = { id: "7", companyId: "company-a", resourceType: "agent", resourceId: "agent-a", action: "pause", createdAt: new Date(0).toISOString() };
     const plugin = definePlugin({ async setup(ctx) {
       ctx.data.register("drain", async ({ companyId }) => {
-        const events = await ctx.events.listLifecycle(companyId!, 10);
+        const events = await ctx.events.listLifecycle(companyId!, 10, "6");
         await ctx.events.acknowledgeLifecycle(companyId!, events[0].id);
         return events;
       });
@@ -1173,7 +1173,7 @@ describe("Durable lifecycle inbox RPC", () => {
       await call("initialize", { manifest: { id: "fixture.lifecycle", apiVersion: 1, version: "1.0.0", displayName: "Lifecycle", description: "Fixture", author: "Tests", categories: ["automation"], capabilities: ["events.subscribe"], entrypoints: {} }, config: {}, databaseNamespace: null });
       expect((await call("getData", { key: "drain", companyId: "company-a", params: {} }) as { result: unknown }).result).toEqual([event]);
       expect(calls).toEqual([
-        { method: "events.listLifecycle", params: { companyId: "company-a", limit: 10 } },
+        { method: "events.listLifecycle", params: { companyId: "company-a", limit: 10, afterId: "6" } },
         { method: "events.acknowledgeLifecycle", params: { companyId: "company-a", eventId: "7" } },
       ]);
     } finally { worker.stop(); reader.close(); input.destroy(); output.destroy(); }

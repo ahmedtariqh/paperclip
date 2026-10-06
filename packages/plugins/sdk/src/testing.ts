@@ -866,10 +866,11 @@ export function createTestHarness(options: TestHarnessOptions): TestHarness {
       },
     },
     events: {
-      async listLifecycle(companyId, limit = 50) {
+      async listLifecycle(companyId, limit = 50, afterId) {
         requireCapability(manifest, capabilitySet, "events.subscribe");
         requireCompanyId(companyId);
         if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error("limit must be an integer from 1 to 100");
+        if (afterId !== undefined && (typeof afterId !== "string" || !/^[1-9]\d*$/.test(afterId) || !Number.isSafeInteger(Number(afterId)))) throw new Error("Invalid lifecycle page id");
         const pending = [...lifecycleEvents.values()].filter(event => event.companyId === companyId && !lifecycleAcknowledgments.has(event.id))
           .sort((a, b) => Number(a.id) - Number(b.id));
         const resources = new Set<string>();
@@ -878,7 +879,7 @@ export function createTestHarness(options: TestHarnessOptions): TestHarness {
           if (resources.has(key)) return false;
           resources.add(key);
           return true;
-        }).slice(0, limit);
+        }).filter(event => afterId === undefined || Number(event.id) > Number(afterId)).slice(0, limit);
       },
       async acknowledgeLifecycle(companyId, eventId) {
         requireCapability(manifest, capabilitySet, "events.subscribe");

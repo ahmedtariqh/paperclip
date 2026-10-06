@@ -1560,7 +1560,7 @@ export function buildHostServices(
 
     events: {
       async listLifecycle(params) {
-        return lifecycleInbox.list(ensureCompanyId(params.companyId), params.limit);
+        return lifecycleInbox.list(ensureCompanyId(params.companyId), params.limit, params.afterId);
       },
       async acknowledgeLifecycle(params) {
         await lifecycleInbox.acknowledge(ensureCompanyId(params.companyId), params.eventId);

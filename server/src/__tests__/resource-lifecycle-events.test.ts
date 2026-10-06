@@ -291,6 +291,23 @@ describePostgres("Resource lifecycle events", () => {
     expect(await db.select().from(pluginLifecycleAcknowledgments).where(eq(pluginLifecycleAcknowledgments.pluginId, first.id))).toEqual([]);
   });
 
+  it("pages past 100 failing resources without skipping their later events", async () => {
+    const plugin = await createPlugin();
+    const inbox = pluginLifecycleInbox(db, plugin.id);
+    await db.insert(resourceLifecycleEvents).values(Array.from({ length: 101 }, () => ({
+      companyId, resourceType: "agent" as const, resourceId: randomUUID(), action: "create" as const,
+    })));
+    const first = await inbox.list(companyId, 100);
+    await db.insert(resourceLifecycleEvents).values({ companyId, resourceType: "agent", resourceId: first[0].resourceId, action: "pause" });
+    const next = await inbox.list(companyId, 100, first.at(-1)!.id);
+    expect(next).toHaveLength(1);
+    expect(next[0].resourceId).not.toBe(first[0].resourceId);
+    await inbox.acknowledge(companyId, next[0].id);
+    expect(await inbox.list(companyId, 100, first.at(-1)!.id)).toEqual([]);
+    expect(await inbox.list(companyId, 100)).toEqual(first);
+    await expect(inbox.list(companyId, 100, "invalid")).rejects.toMatchObject({ status: 400 });
+  });
+
   it("never skips a lower event id that commits after a higher id is acknowledged", async () => {
     const plugin = await createPlugin();
     const inbox = pluginLifecycleInbox(db, plugin.id);

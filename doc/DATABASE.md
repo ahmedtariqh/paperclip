@@ -490,7 +490,7 @@ current authorized repository data. A termination hook does not authorize
 provider cleanup without the plugin's own authorization and retention policy.
 
 The migrations create empty journal and acknowledgment tables. They do not scan or backfill existing
-installs. Plugins use `ctx.events.listLifecycle(companyId, limit?)` and
+installs. Plugins use `ctx.events.listLifecycle(companyId, limit?, afterId?)` and
 `ctx.events.acknowledgeLifecycle(companyId, eventId)` with `events.subscribe`.
 The host requires a matching company invocation (or configured-company proactive
 access) and a ready plugin enabled for that company.
@@ -502,6 +502,11 @@ crashes, retries, and restarts cannot lose a hook; concurrent reads can repeat a
 event. There is no global cursor or backfill scan. Consumers must serialize their
 processing and make provider operations idempotent before acknowledging success.
 Retention and provider integration remain separate work.
+
+Lifecycle polls can page past failed resources using the last returned event id as
+`afterId`. Reset `afterId` at the start of every polling sweep: it is a page
+cursor, never a persisted high-water mark. This retries failures and includes
+transactions that commit later with lower ids.
 
 ## Legacy controller ownership
 

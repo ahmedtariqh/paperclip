@@ -548,9 +548,10 @@ export interface PluginLocalFoldersClient {
 export interface PluginEventsClient {
   /** Read durable resource hooks. Requires events.subscribe and a company scope.
    * Only the earliest unacknowledged event for each resource is returned.
+   * Page using afterId; reset it each polling sweep to retry failures and late commits.
    * Events repeat until acknowledged; use a company-scoped provider idempotency key.
    */
-  listLifecycle(companyId: string, limit?: number): Promise<ResourceLifecycleEvent[]>;
+  listLifecycle(companyId: string, limit?: number, afterId?: string): Promise<ResourceLifecycleEvent[]>;
   /** Acknowledge only after the provider operation succeeds. */
   acknowledgeLifecycle(companyId: string, eventId: string): Promise<void>;
   /**
