@@ -6009,6 +6009,31 @@ export function nativeProviderUsageLimitFromEvent(
   );
 }
 
+/** Promote only this known account/model rejection from a committed provider terminal. */
+export function nativeCodexModelRejectionFromEvent(
+  event: Pick<PrpEvent, "sourceKind" | "eventType" | "payload">,
+): string | null {
+  const payload = record(event.payload);
+  if (event.sourceKind !== "runner" || event.eventType !== "turn.failed" || payload.status !== "failed") return null;
+  const error = record(payload.error);
+  if (error.recoverable === true || payload.recoverable === true || typeof error.message !== "string") return null;
+  let message = error.message;
+  // Codex can wrap the provider's HTTP error in a JSON string.
+  try {
+    const response = record(JSON.parse(message));
+    if (response.status !== 400 || record(response.error).type !== "invalid_request_error") return null;
+    const providerMessage = record(response.error).message;
+    if (typeof providerMessage !== "string") return null;
+    message = providerMessage;
+  } catch {
+    // Some Codex versions report the same error as plain text.
+  }
+  if (typeof message !== "string") return null;
+  const model = /^The '([a-zA-Z0-9][a-zA-Z0-9._-]{0,159})' model is not supported when using Codex with a ChatGPT account\.$/.exec(message)?.[1];
+  // Rebuild allowlisted copy rather than displaying arbitrary provider diagnostics.
+  return model ? `The '${model}' model is not supported when using Codex with a ChatGPT account.` : null;
+}
+
 export function nativeSessionFailureDisposition(
   attempt: number,
   now = new Date(),
@@ -7805,6 +7830,13 @@ async function executePaperclipNativeSessionWithinScope(
   let turnStartedAtMs: number | null = null;
   let firstAgentEventRecorded = false;
   let providerUsageLimitObserved = false;
+  let providerModelRejection: string | null = null;
+  const observeProviderModelRejection = (event: PrpEvent) => {
+    // A new turn or a later terminal must not inherit an earlier rejection.
+    if (event.sourceKind === "runner" && ["turn.started", "turn.completed", "turn.failed", "turn.cancelled", "turn.interrupted"].includes(event.eventType)) {
+      providerModelRejection = nativeCodexModelRejectionFromEvent(event);
+    }
+  };
   let turnCompletedAtMs: number | null = null;
   let runnerSessionStartupScope: NativeRunSpanScope | null = null;
   let agentTurnScope: NativeRunSpanScope | null = null;
@@ -7861,6 +7893,7 @@ async function executePaperclipNativeSessionWithinScope(
         await liveQuestions.observe(event);
         await projectSessionGoalEvent(event);
         providerUsageLimitObserved ||= nativeProviderUsageLimitFromEvent(event);
+        observeProviderModelRejection(event);
         const eventAtMs = Date.parse(event.emittedAt);
         const milestoneAtMs = Number.isFinite(eventAtMs)
           ? eventAtMs
@@ -8064,6 +8097,7 @@ async function executePaperclipNativeSessionWithinScope(
         await liveQuestions.observe(event);
         await projectSessionGoalEvent(event);
         providerUsageLimitObserved ||= nativeProviderUsageLimitFromEvent(event);
+        observeProviderModelRejection(event);
         const questionFallback = await materializeRuntimeQuestionFallback({
           db: input.db,
           binding: input.execution.binding,
@@ -8640,6 +8674,10 @@ async function executePaperclipNativeSessionWithinScope(
       // with a retry or release the still-live runner's lease.
       throw new NativeControllerDetachedForRestartError();
     }
+    const modelRejection = error instanceof NativeProviderTerminalFailure &&
+      nativeSessionFailureSourceCode(error) === "native_provider_terminal_failed"
+      ? providerModelRejection
+      : null;
     const protocolIntegrityFailure =
       error instanceof NativeSessionProtocolIntegrityError ? error : null;
     const ownershipUnverified =
@@ -8670,7 +8708,7 @@ async function executePaperclipNativeSessionWithinScope(
 
       const failedAtMs = Date.now();
       const executionFailureMessage = redactSensitiveText(
-        error instanceof Error ? error.message : String(error),
+        modelRejection ?? (error instanceof Error ? error.message : String(error)),
       ).slice(-4_096);
       if (!taskSettleScope) {
         taskSettleScope = trace.start("task.settle", {
@@ -8747,9 +8785,11 @@ async function executePaperclipNativeSessionWithinScope(
       const sourceFailureCode =
         classifiedFailureCode === "native_event_replay_conflict"
           ? classifiedFailureCode
-          : providerUsageLimitObserved
-            ? "native_provider_usage_limit"
-            : classifiedFailureCode;
+          : modelRejection
+            ? "native_provider_model_rejected"
+            : providerUsageLimitObserved
+              ? "native_provider_usage_limit"
+              : classifiedFailureCode;
       const recoveryEvidence = await nativeProviderRecoveryEvidence({
         db: input.db,
         runId: input.execution.binding.runId,
@@ -8781,9 +8821,9 @@ async function executePaperclipNativeSessionWithinScope(
       const integrityFailure =
         sourceFailureCode === "native_event_replay_conflict";
       const message =
-        error instanceof Error
+        modelRejection ?? (error instanceof Error
           ? error.message.slice(0, 2_000)
-          : String(error).slice(0, 2_000);
+          : String(error).slice(0, 2_000));
       const sanitizedStderrTail = redactSensitiveText(message).slice(-4_096);
       // Set inside the transaction only when the write below genuinely
       // transitions the run into "failed". Read after the transaction
@@ -9210,7 +9250,12 @@ async function executePaperclipNativeSessionWithinScope(
     errorMessage:
       native.terminal.runTerminalState === "succeeded"
         ? null
-        : `Native session ${native.terminal.runTerminalState}`,
+        : native.terminal.runTerminalState === "failed" && providerModelRejection
+          ? providerModelRejection
+          : `Native session ${native.terminal.runTerminalState}`,
+    ...(native.terminal.runTerminalState === "failed" && providerModelRejection
+      ? { errorCode: "native_provider_model_rejected" }
+      : {}),
     resultJson: {
       nativeResult: native.result as unknown as Record<string, unknown>,
       nativeTerminal: native.terminal as unknown as Record<string, unknown>,
