@@ -598,20 +598,23 @@ export async function onboard(opts: OnboardOptions): Promise<void> {
     p.log.step(pc.bold("LLM Provider"));
     llm = await promptLlm();
 
-    if (llm?.apiKey) {
+    if (llm && !llm.skipValidation && (llm.apiKey || llm.provider === "custom")) {
       const s = p.spinner();
-      s.start("Validating API key...");
+      s.start("Validating LLM configuration...");
       try {
         if (llm.provider === "claude") {
-          const res = await fetch("https://api.anthropic.com/v1/messages", {
+          const baseUrl = (llm.baseUrl ?? "https://api.anthropic.com").replace(/\/+$/, "");
+          const model = llm.model ?? "claude-sonnet-4-5-20250929";
+          const res = await fetch(`${baseUrl}/v1/messages`, {
             method: "POST",
             headers: {
-              "x-api-key": llm.apiKey,
+              ...(llm.apiKey ? { "x-api-key": llm.apiKey } : {}),
               "anthropic-version": "2023-06-01",
               "content-type": "application/json",
+              ...(llm.headers ?? {}),
             },
             body: JSON.stringify({
-              model: "claude-sonnet-4-5-20250929",
+              model,
               max_tokens: 1,
               messages: [{ role: "user", content: "hi" }],
             }),
@@ -624,11 +627,18 @@ export async function onboard(opts: OnboardOptions): Promise<void> {
             s.stop(pc.yellow("Could not validate API key — continuing anyway"));
           }
         } else {
-          const res = await fetch("https://api.openai.com/v1/models", {
-            headers: { Authorization: `Bearer ${llm.apiKey}` },
+          const baseUrl = (llm.baseUrl ?? "https://api.openai.com/v1").replace(/\/+$/, "");
+          const headers: Record<string, string> = {
+            ...(llm.apiKey ? { Authorization: `Bearer ${llm.apiKey}` } : {}),
+            ...(llm.headers ?? {}),
+          };
+          const res = await fetch(`${baseUrl}/models`, {
+            headers,
           });
           if (res.ok) {
-            s.stop("API key is valid");
+            s.stop(`${llm.provider === "custom" ? "Custom LLM" : "OpenAI"} API is reachable and valid`);
+          } else if (llm.provider === "custom" && (res.status === 404 || res.status === 405)) {
+            s.stop(pc.yellow(`Custom endpoint reached (/models returned ${res.status}) — continuing anyway`));
           } else if (res.status === 401) {
             s.stop(pc.yellow("API key appears invalid — you can update it later"));
           } else {

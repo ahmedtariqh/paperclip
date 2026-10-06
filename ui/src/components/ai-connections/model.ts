@@ -23,6 +23,10 @@ export const AI_PROVIDERS: Record<
     subscriptionName: "Grok subscription",
     logo: "/brands/adapters/grok.svg",
   },
+  custom: {
+    name: "Custom LLM",
+    logo: "/brands/codex-color.svg",
+  },
 };
 
 export type AiConnectionSummary = Omit<AiManagedConnectionSummary, "isDefault"> & { isDefault?: boolean };

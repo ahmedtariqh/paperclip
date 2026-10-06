@@ -31,6 +31,7 @@ export const AI_PROVIDERS = [
   "openai",
   "openrouter",
   "xai",
+  "custom",
 ] as const;
 export const aiProviderSchema = z.enum(AI_PROVIDERS);
 export const aiAuthMethodSchema = z.enum(["subscription", "api_key"]);
@@ -64,7 +65,12 @@ export const aiConnectionBindingSchema = z.discriminatedUnion("mode", [
     .strict(),
 ]);
 export type AiConnectionBinding = z.infer<typeof aiConnectionBindingSchema>;
-export const aiConnectionMetadataSchema = z.object(requirement).strict();
+export const aiConnectionMetadataSchema = z.object({
+  ...requirement,
+  baseUrl: z.string().url().optional(),
+  defaultModel: z.string().optional(),
+  envKey: z.string().optional(),
+}).strict();
 export type AiConnectionMetadata = z.infer<typeof aiConnectionMetadataSchema>;
 
 /** Existing integrations only. This table describes compatibility, never routing. */
@@ -107,6 +113,21 @@ export const AI_CONNECTION_CAPABILITIES: Record<
       api_key: { adapters: ["grok_local"], envKey: "XAI_API_KEY" },
     },
   },
+  custom: {
+    name: "Custom LLM",
+    methods: {
+      api_key: {
+        adapters: [
+          "opencode_local",
+          "hermes_local",
+          "hermes_gateway",
+          "claude_local",
+          "codex_local",
+        ],
+        envKey: "OPENAI_API_KEY",
+      },
+    },
+  },
 };
 export function isAiConnectionCompatible(
   requirement: AiConnectionMetadata | AiConnectionBinding,
@@ -133,7 +154,8 @@ export function isAiConnectionCompatible(
     : requirement.method ? [methods[requirement.method]] : [];
   return (
     candidates.some((method) => method?.adapters.includes(adapterType)) &&
-    (requirement.provider !== "openrouter" ||
+    (requirement.provider === "custom" ||
+      requirement.provider !== "openrouter" ||
       (typeof model === "string" && model.startsWith("openrouter/")))
   );
 }
@@ -173,6 +195,10 @@ export interface AiManagedConnectionSummary {
   status: "connected" | "needs_attention" | "expired" | "revoked";
   unavailableReason?: string;
   usageProbeSupported?: boolean;
+  baseUrl?: string;
+  defaultModel?: string;
+  envKey?: string;
+  metadata?: AiConnectionMetadata;
 }
 export interface AiConnectionList {
   currentUserId: string;
@@ -190,6 +216,9 @@ export const createAiConnectionSchema = z
     connectionId: z.string().uuid().optional(),
     agentIds: z.array(z.string().uuid()).max(1000).default([]),
     allAgents: z.boolean().default(false),
+    baseUrl: z.string().url().optional(),
+    defaultModel: z.string().optional(),
+    envKey: z.string().optional(),
   })
   .strict()
   .superRefine((v, ctx) => {
@@ -197,7 +226,7 @@ export const createAiConnectionSchema = z
       ctx.addIssue({ code: "custom", message: "Unsupported sign-in method" });
     if (
       v.method === "api_key"
-        ? !v.apiKey || Boolean(v.loginSessionId)
+        ? (v.provider !== "custom" && !v.apiKey) || Boolean(v.loginSessionId)
         : !v.loginSessionId || Boolean(v.apiKey)
     ) {
       ctx.addIssue({

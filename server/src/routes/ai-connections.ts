@@ -133,12 +133,70 @@ export async function canInstallSharedAiConnectionForNewAgent(
     connection.creator === userId || await accessService(db).hasPermission(companyId, "user", userId, "tools:manage_connections");
 }
 
-/** Fixed provider endpoints; credentials are never sent to a caller-supplied URL or through a redirect. */
+function isLocalEndpoint(urlStr: string): boolean {
+  try {
+    const url = new URL(urlStr);
+    const host = url.hostname.toLowerCase();
+    return (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "::1" ||
+      host === "0.0.0.0" ||
+      host.endsWith(".local") ||
+      host.startsWith("192.168.") ||
+      host.startsWith("10.") ||
+      host.startsWith("172.16.")
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Fixed provider endpoints; credentials are never sent to a caller-supplied URL or through a redirect (except custom providers with explicit baseUrl). */
 export async function validateAiApiKey(
   provider: AiProvider,
   key: string,
-  request: typeof fetch = fetch,
+  requestOrBaseUrl?: (typeof fetch) | string,
+  baseUrlParam?: string,
 ) {
+  const request: typeof fetch = typeof requestOrBaseUrl === "function" ? requestOrBaseUrl : fetch;
+  const baseUrl = typeof requestOrBaseUrl === "string" ? requestOrBaseUrl : baseUrlParam;
+
+  if (provider === "custom") {
+    if (!baseUrl) {
+      throw unprocessable("Base URL is required for custom AI provider", { code: "ai_connection_verification_failed" });
+    }
+    const targetUrl = `${baseUrl.replace(/\/+$/, "")}/models`;
+    const skipVerify = process.env.PAPERCLIP_SKIP_CUSTOM_LLM_VERIFY === "true" || isLocalEndpoint(baseUrl);
+    let response: Response;
+    try {
+      response = await request(targetUrl, {
+        redirect: "error",
+        signal: AbortSignal.timeout(15000),
+        headers: key ? { Authorization: `Bearer ${key}` } : {},
+      });
+    } catch {
+      if (skipVerify) {
+        return;
+      }
+      throw unprocessable("Could not verify the account. Try again.", { code: "ai_connection_verification_failed" });
+    }
+    await response.body?.cancel();
+    if (!response.ok) {
+      if (skipVerify && (response.status === 404 || response.status === 405)) {
+        return;
+      }
+      if (response.status === 401 || response.status === 403) {
+        throw unprocessable("The provider rejected this API key.", { code: "ai_connection_api_key_rejected" });
+      }
+      if (skipVerify) {
+        return;
+      }
+      throw unprocessable("The provider could not verify this account. Try again.", { code: "ai_connection_verification_failed" });
+    }
+    return;
+  }
+
   const endpoints = {
     anthropic: "https://api.anthropic.com/v1/models?limit=1",
     openai: "https://api.openai.com/v1/models",
@@ -328,12 +386,12 @@ export function aiConnectionRoutes(db: Db, options: Parameters<typeof supportsLo
           "Use the existing provider sign-in flow to connect a subscription",
         );
       const attemptStartedAt = new Date();
-      await validateAiApiKey(input.provider, input.apiKey!);
+      await validateAiApiKey(input.provider, input.apiKey ?? "", undefined, input.baseUrl);
       const result = await service.save(
         companyId,
         userId,
         input,
-        input.apiKey!,
+        input.apiKey ?? "",
         undefined,
         attemptStartedAt,
       );

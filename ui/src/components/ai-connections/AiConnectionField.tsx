@@ -26,12 +26,21 @@ import {
 
 export function aiProviderForAdapter(
   adapterType: string,
+  model?: string,
 ): AiProvider | undefined {
+  if (adapterType === "hermes_local" || adapterType === "hermes_gateway") {
+    return "custom";
+  }
+  if (adapterType === "opencode_local") {
+    if (typeof model === "string" && model.startsWith("openrouter/")) {
+      return "openrouter";
+    }
+    return "custom";
+  }
   return (
     {
       claude_local: "anthropic",
       codex_local: "openai",
-      opencode_local: "openrouter",
       grok_local: "xai",
     } as Record<string, AiProvider>
   )[adapterType];
@@ -61,7 +70,7 @@ export function AiConnectionField({
   readOnly?: boolean;
   routerAdapterType?: string;
 }) {
-  const provider = aiProviderForAdapter(adapterType);
+  const provider = aiProviderForAdapter(adapterType, model);
   const returnFocus = useRef<HTMLElement | null>(null);
   const restoreFocus = (event: Event) => { event.preventDefault(); returnFocus.current?.focus(); };
   const [adopting, setAdopting] = useState(false);

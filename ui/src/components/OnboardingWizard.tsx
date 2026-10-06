@@ -57,6 +57,7 @@ import { secretsApi } from "../api/secrets";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Checkbox } from "./ui/checkbox";
 import { useLocation, useNavigate, useParams } from "@/lib/router";
 import { useDialog } from "../context/DialogContext";
 import { useCompany } from "../context/CompanyContext";
@@ -251,10 +252,14 @@ const MODEL_SOURCE_INLINE_MARKS: Record<string, ComponentType<{ className?: stri
 const API_KEY_ENV_KEYS: Record<string, string> = {
   claude_local: ANTHROPIC_API_KEY_ENV_KEY,
   codex_local: "OPENAI_API_KEY",
+  opencode_local: "OPENAI_API_KEY",
+  hermes_local: "OPENAI_API_KEY",
+  hermes_gateway: "OPENAI_API_KEY",
 };
 
-function apiKeyEnvKeyFor(adapterType: string): string {
-  return API_KEY_ENV_KEYS[adapterType] ?? "API_KEY";
+function apiKeyEnvKeyFor(adapterType: string, customEnvKey?: string): string {
+  if (customEnvKey?.trim()) return customEnvKey.trim();
+  return API_KEY_ENV_KEYS[adapterType] ?? "OPENAI_API_KEY";
 }
 
 function ModelSourceMark({
@@ -684,6 +689,10 @@ function OnboardingWizardInner({
    * `localStorage`, and a provider key does not belong there.
    */
   const [apiKey, setApiKey] = useState("");
+  const [customBaseUrl, setCustomBaseUrl] = useState((saved?.customBaseUrl as string) ?? "");
+  const [customModelId, setCustomModelId] = useState((saved?.customModelId as string) ?? "");
+  const [customEnvKey, setCustomEnvKey] = useState((saved?.customEnvKey as string) ?? "OPENAI_API_KEY");
+  const [skipEnvProbe, setSkipEnvProbe] = useState(Boolean(saved?.skipEnvProbe));
   // The owner's stored Claude subscription login, read right before the hire
   // (see handleGiveHeartbeat). Onboarding applies it with no extra control,
   // so nothing else reads this state yet.
@@ -696,7 +705,7 @@ function OnboardingWizardInner({
   );
   const savedKeys = useSavedProviderKeys(
     createdCompanyId,
-    apiKeyEnvKeyFor(adapterType),
+    apiKeyEnvKeyFor(adapterType, customEnvKey),
     effectiveOnboardingOpen && step === 4,
   );
   // The chooser is absent in onboarding. Prefer the user's explicit default;
@@ -704,7 +713,7 @@ function OnboardingWizardInner({
   const savedSubscription = savedKeys.subscriptions.find((option) => option.aiConnection?.mode === "responsible_user")
     ?? (savedKeys.subscriptions.length === 1 ? savedKeys.subscriptions[0] : undefined);
   const [selectedSavedKey, setSelectedSavedKey] = useState<{ companyId: string; envKey: string; id: string } | null>(null);
-  const selectedApiKeyId = selectedSavedKey?.companyId === createdCompanyId && selectedSavedKey?.envKey === apiKeyEnvKeyFor(adapterType)
+  const selectedApiKeyId = selectedSavedKey?.companyId === createdCompanyId && selectedSavedKey?.envKey === apiKeyEnvKeyFor(adapterType, customEnvKey)
     ? selectedSavedKey.id
     : savedKeys.options[0]?.id;
   const selectedApiKey = savedKeys.options.find((option) => option.id === selectedApiKeyId);
@@ -761,10 +770,10 @@ function OnboardingWizardInner({
    */
   const apiKeySecretRef = useRef<{ key: string; companyId: string; envKey: string; binding?: Awaited<ReturnType<typeof storeProviderApiKey>>["binding"]; aiConnection?: AiConnectionBinding } | null>(null);
   const managedSubscriptionRef = useRef<{ companyId: string; binding: AiConnectionBinding } | null>(null);
-  const managedProvider = aiProviderForAdapter(adapterType);
+  const managedProvider = aiProviderForAdapter(adapterType, customModelId || model);
   function managedBindingForStep(): AiConnectionBinding | undefined {
     if (credentialMode === "api") return selectedApiKey?.aiConnection ?? (
-      !selectedApiKey && apiKeySecretRef.current?.companyId === createdCompanyId && apiKeySecretRef.current.envKey === apiKeyEnvKeyFor(adapterType)
+      !selectedApiKey && apiKeySecretRef.current?.companyId === createdCompanyId && apiKeySecretRef.current.envKey === apiKeyEnvKeyFor(adapterType, customEnvKey)
         ? apiKeySecretRef.current.aiConnection : undefined);
     return savedSubscription?.aiConnection ?? (managedSubscriptionRef.current?.companyId === createdCompanyId && managedSubscriptionRef.current.binding.provider === managedProvider ? managedSubscriptionRef.current.binding : undefined);
   }
@@ -906,6 +915,7 @@ function OnboardingWizardInner({
       agentName, agentAppearance, agentRole, adapterType, cwd, model, command, args, url,
       // The mode, never the key: this blob is localStorage.
       credentialMode, credentialModeChoice,
+      customBaseUrl, customModelId, customEnvKey, skipEnvProbe,
       createdCompanyId, createdCompanyPrefix, createdAgentId,
       createdCompanyGoalId, createdProjectId, createdIssueRef,
     };
@@ -914,6 +924,7 @@ function OnboardingWizardInner({
     effectiveOnboardingOpen, step, companyName,
     agentName, agentAppearance, agentRole, adapterType, cwd, model, command, args, url,
     credentialMode, credentialModeChoice,
+    customBaseUrl, customModelId, customEnvKey, skipEnvProbe,
     createdCompanyId, createdCompanyPrefix, createdAgentId,
     createdCompanyGoalId, createdProjectId, createdIssueRef,
   ]);
@@ -1384,7 +1395,13 @@ function OnboardingWizardInner({
                 label: "Connect",
                 icon: "arrow",
                 disabled:
-                  !connectStepReady || (credentialMode === "api" && !apiKey.trim() && !selectedApiKey),
+                  !connectStepReady ||
+                  (credentialMode === "api" &&
+                    !apiKey.trim() &&
+                    !selectedApiKey &&
+                    !skipEnvProbe &&
+                    adapterType !== "opencode_local" &&
+                    adapterType !== "hermes_local"),
               }
           : // Nothing is chosen on arrival, and the row is what chooses. Until
             // it has been answered the button has nothing to do.
@@ -1540,7 +1557,7 @@ function OnboardingWizardInner({
     setAdapterEnvResult(null);
     adapterEnvResultAppliedStoredLoginRef.current = false;
     setAdapterEnvError(null);
-  }, [step, adapterType, model, command, args, url, credentialMode, apiKey, selectedSavedKey, selectedApiKey?.id, savedSubscription?.id]);
+  }, [step, adapterType, model, command, args, url, credentialMode, apiKey, selectedSavedKey, selectedApiKey?.id, savedSubscription?.id, customBaseUrl, customModelId, customEnvKey, skipEnvProbe]);
 
   /**
    * Leaving the step puts the row back to a question.
@@ -1794,11 +1811,22 @@ function OnboardingWizardInner({
    */
   async function storeApiKeyUserSecret(companyId: string): Promise<boolean> {
     const key = apiKey.trim();
-    const envKey = apiKeyEnvKeyFor(adapterType);
+    const envKey = apiKeyEnvKeyFor(adapterType, customEnvKey);
     if (apiKeySecretRef.current?.key === key && apiKeySecretRef.current.companyId === companyId && apiKeySecretRef.current.envKey === envKey) return true;
     try {
       if (managedProvider) {
-        await aiConnectionsApi.create(companyId, { provider: managedProvider, method: "api_key", name: `My ${CONNECT_SOURCE_NAMES[adapterType] ?? managedProvider} API`, ownership: "personal", apiKey: key, agentIds: [], allAgents: true });
+        await aiConnectionsApi.create(companyId, {
+          provider: managedProvider,
+          method: "api_key",
+          name: `My ${CONNECT_SOURCE_NAMES[adapterType] ?? managedProvider} API`,
+          ownership: "personal",
+          apiKey: key || undefined,
+          baseUrl: customBaseUrl.trim() || undefined,
+          defaultModel: customModelId.trim() || undefined,
+          envKey: customEnvKey.trim() || undefined,
+          agentIds: [],
+          allAgents: true,
+        });
         apiKeySecretRef.current = { key, companyId, envKey, aiConnection: { provider: managedProvider, method: "api_key", mode: "responsible_user" } };
         return true;
       }
@@ -1840,41 +1868,27 @@ function OnboardingWizardInner({
           ? DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX
           : defaultCreateValues.dangerouslyBypassSandbox
     });
+    if (customModelId.trim()) {
+      config.model = customModelId.trim();
+    }
+    const env =
+      typeof config.env === "object" && config.env !== null && !Array.isArray(config.env)
+        ? { ...(config.env as Record<string, unknown>) }
+        : {};
+    if (customBaseUrl.trim()) {
+      env.OPENAI_BASE_URL = { type: "plain", value: customBaseUrl.trim() };
+      env.ANTHROPIC_BASE_URL = { type: "plain", value: customBaseUrl.trim() };
+    }
+    if (adapterType === "opencode_local") {
+      env.OPENCODE_ALLOW_ALL_MODELS = { type: "plain", value: "1" };
+    }
     if (adapterType === "claude_local" && forceUnsetAnthropicApiKey) {
-      const env =
-        typeof config.env === "object" &&
-        config.env !== null &&
-        !Array.isArray(config.env)
-          ? { ...(config.env as Record<string, unknown>) }
-          : {};
       env.ANTHROPIC_API_KEY = { type: "plain", value: "" };
-      config.env = env;
     }
-    // A key typed on this step is the credential the agent is being hired with,
-    // so it has to reach the configuration the hire sends — and the same one the
-    // environment test probes, or the test would pass on a config the hire does
-    // not use. Only when the mode asks for it: leaving a stale reference in the
-    // config after switching back to a subscription is what the server rejects
-    // alongside the Claude OAuth binding.
-    //
-    // A reference, never the key itself. The adapter configuration is
-    // persisted and revisioned, so a `{ type: "plain", value }` here would leave
-    // a live credential at rest in every copy of it. This mirrors
-    // `buildFixedClaudeOAuthBinding`, which holds a reference to the stored
-    // Claude token for the same reason.
-    //
-    // Guarded on the caller having stored the secret, not on the key being
-    // present. If storing failed this stays false, and the right outcome is a
-    // configuration with no credential — which the hire then blocks on — rather
-    // than one that quietly falls back to embedding the value.
     if (!managedBindingForStep() && credentialMode === "api" && (bindApiKey || selectedApiKey)) {
-      const env =
-        typeof config.env === "object" && config.env !== null && !Array.isArray(config.env)
-          ? { ...(config.env as Record<string, unknown>) }
-          : {};
-      env[apiKeyEnvKeyFor(adapterType)] = selectedApiKey?.binding ?? apiKeySecretRef.current?.binding;
-      config.env = env;
+      env[apiKeyEnvKeyFor(adapterType, customEnvKey)] = selectedApiKey?.binding ?? apiKeySecretRef.current?.binding;
     }
+    config.env = env;
     if (credentialMode === "subscription" && savedSubscription?.binding) {
       config.env = { ...((config.env as object) ?? {}), CODEX_HOME: savedSubscription.binding };
     }
@@ -2060,14 +2074,16 @@ function OnboardingWizardInner({
           );
           return;
         }
-        const discoveredModels = adapterModels ?? [];
-        if (!discoveredModels.some((entry) => entry.id === selectedModelId)) {
-          setError(
-            discoveredModels.length === 0
-              ? "No OpenCode models discovered. Run `opencode models` and authenticate providers."
-              : `Configured OpenCode model is unavailable: ${selectedModelId}`
-          );
-          return;
+        if (!customModelId.trim()) {
+          const discoveredModels = adapterModels ?? [];
+          if (!discoveredModels.some((entry) => entry.id === selectedModelId)) {
+            setError(
+              discoveredModels.length === 0
+                ? "No OpenCode models discovered. Run `opencode models` and authenticate providers."
+                : `Configured OpenCode model is unavailable: ${selectedModelId}`
+            );
+            return;
+          }
         }
       }
 
@@ -2148,7 +2164,7 @@ function OnboardingWizardInner({
         // Block the hire on a failed environment test. Also block it on a
         // pass or a warn result that reports missing authentication — the
         // agent cannot run without one of those.
-        if (blocksAgentCreate(result)) {
+        if (!skipEnvProbe && blocksAgentCreate(result)) {
           setError(
             result.status === "fail"
               ? "The environment test failed. Fix the reported checks before you hire this agent."
@@ -2775,12 +2791,12 @@ function OnboardingWizardInner({
                         } API key to connect`}
                       >
                         <SavedProviderKeySelect {...savedKeys} disabled={loading || adapterEnvLoading} value={selectedApiKey?.id ?? ""} onChange={(id) => {
-                          setSelectedSavedKey(createdCompanyId ? { companyId: createdCompanyId, envKey: apiKeyEnvKeyFor(adapterType), id } : null);
+                          setSelectedSavedKey(createdCompanyId ? { companyId: createdCompanyId, envKey: apiKeyEnvKeyFor(adapterType, customEnvKey), id } : null);
                           setApiKey("");
                         }} />
                         {!selectedApiKey && <OnboardingCardField
                           label="API key"
-                          placeholder="Enter API key here"
+                          placeholder={skipEnvProbe || adapterType === "opencode_local" || adapterType === "hermes_local" ? "Enter API key here (optional for local endpoints)" : "Enter API key here"}
                           masked
                           // The card is the answer to the tile just pressed, so
                           // the field is unambiguously the next thing. Carried
@@ -2788,11 +2804,54 @@ function OnboardingWizardInner({
                           autoFocus
                           value={apiKey}
                           onChange={(value) => {
-                            setSelectedSavedKey(createdCompanyId ? { companyId: createdCompanyId, envKey: apiKeyEnvKeyFor(adapterType), id: "" } : null);
+                            setSelectedSavedKey(createdCompanyId ? { companyId: createdCompanyId, envKey: apiKeyEnvKeyFor(adapterType, customEnvKey), id: "" } : null);
                             setApiKey(value);
                           }}
                           onSubmit={() => handleConnectStepPrimary()}
                         />}
+
+                        <div className="mt-3 flex flex-col gap-2">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs text-muted-foreground font-medium">Base URL (optional / custom endpoint)</span>
+                            <OnboardingCardField
+                              label="Base URL"
+                              placeholder="https://.../v1 or http://127.0.0.1:4000/v1"
+                              value={customBaseUrl}
+                              onChange={(value) => setCustomBaseUrl(value)}
+                              onSubmit={() => handleConnectStepPrimary()}
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs text-muted-foreground font-medium">Model ID (optional default override)</span>
+                            <OnboardingCardField
+                              label="Model ID"
+                              placeholder="provider/model, e.g. openai/gpt-4o or litellm/claude-3-7"
+                              value={customModelId}
+                              onChange={(value) => setCustomModelId(value)}
+                              onSubmit={() => handleConnectStepPrimary()}
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs text-muted-foreground font-medium">API Key Env Var</span>
+                            <OnboardingCardField
+                              label="API Key Env Var"
+                              placeholder="OPENAI_API_KEY or ANTHROPIC_API_KEY"
+                              value={customEnvKey}
+                              onChange={(value) => setCustomEnvKey(value)}
+                              onSubmit={() => handleConnectStepPrimary()}
+                            />
+                          </div>
+
+                          <label className="mt-1 flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                            <Checkbox
+                              checked={skipEnvProbe}
+                              onCheckedChange={(checked) => setSkipEnvProbe(Boolean(checked))}
+                            />
+                            <span>Allow Empty Key / Skip Probe (for local unauthenticated LLMs)</span>
+                          </label>
+                        </div>
                       </OnboardingLoginCard>
                     ) : connectStepNeedsLogin &&
                       createdCompanyId &&

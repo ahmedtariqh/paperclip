@@ -10,7 +10,15 @@ export async function llmCheck(config: PaperclipConfig): Promise<CheckResult> {
     };
   }
 
-  if (!config.llm.apiKey) {
+  if (config.llm.skipValidation) {
+    return {
+      name: "LLM provider",
+      status: "pass",
+      message: "Validation skipped by config",
+    };
+  }
+
+  if (!config.llm.apiKey && config.llm.provider !== "custom") {
     return {
       name: "LLM provider",
       status: "pass",
@@ -20,15 +28,18 @@ export async function llmCheck(config: PaperclipConfig): Promise<CheckResult> {
 
   try {
     if (config.llm.provider === "claude") {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const baseUrl = (config.llm.baseUrl ?? "https://api.anthropic.com").replace(/\/+$/, "");
+      const model = config.llm.model ?? "claude-sonnet-4-5-20250929";
+      const res = await fetch(`${baseUrl}/v1/messages`, {
         method: "POST",
         headers: {
-          "x-api-key": config.llm.apiKey,
+          ...(config.llm.apiKey ? { "x-api-key": config.llm.apiKey } : {}),
           "anthropic-version": "2023-06-01",
           "content-type": "application/json",
+          ...(config.llm.headers ?? {}),
         },
         body: JSON.stringify({
-          model: "claude-sonnet-4-5-20250929",
+          model,
           max_tokens: 1,
           messages: [{ role: "user", content: "hi" }],
         }),
@@ -51,17 +62,33 @@ export async function llmCheck(config: PaperclipConfig): Promise<CheckResult> {
         message: `Claude API returned status ${res.status}`,
       };
     } else {
-      const res = await fetch("https://api.openai.com/v1/models", {
-        headers: { Authorization: `Bearer ${config.llm.apiKey}` },
+      const baseUrl = (config.llm.baseUrl ?? "https://api.openai.com/v1").replace(/\/+$/, "");
+      const headers: Record<string, string> = {
+        ...(config.llm.apiKey ? { Authorization: `Bearer ${config.llm.apiKey}` } : {}),
+        ...(config.llm.headers ?? {}),
+      };
+      const res = await fetch(`${baseUrl}/models`, {
+        headers,
       });
       if (res.ok) {
-        return { name: "LLM provider", status: "pass", message: "OpenAI API key is valid" };
+        return {
+          name: "LLM provider",
+          status: "pass",
+          message: `${config.llm.provider === "custom" ? "Custom LLM" : "OpenAI"} API key is valid`,
+        };
+      }
+      if (config.llm.provider === "custom" && (res.status === 404 || res.status === 405)) {
+        return {
+          name: "LLM provider",
+          status: "warn",
+          message: `Custom endpoint returned status ${res.status} (/models not exposed); continuing anyway`,
+        };
       }
       if (res.status === 401) {
         return {
           name: "LLM provider",
           status: "fail",
-          message: "OpenAI API key is invalid (401)",
+          message: `${config.llm.provider === "custom" ? "Custom LLM" : "OpenAI"} API key is invalid (401)`,
           canRepair: false,
           repairHint: "Run `paperclipai configure --section llm`",
         };
@@ -69,7 +96,7 @@ export async function llmCheck(config: PaperclipConfig): Promise<CheckResult> {
       return {
         name: "LLM provider",
         status: "warn",
-        message: `OpenAI API returned status ${res.status}`,
+        message: `${config.llm.provider === "custom" ? "Custom LLM" : "OpenAI"} API returned status ${res.status}`,
       };
     }
   } catch {

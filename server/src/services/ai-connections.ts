@@ -135,6 +135,7 @@ export function aiConnectionService(db: Db) {
           grantId: grant.id,
           companyId,
           ...metadata.data,
+          metadata: metadata.data,
           usageProbeSupported: supportsAiConnectionUsage(metadata.data.provider, metadata.data.method),
           name: connection.name,
           accountLabel: grant.providerTenant?.name,
@@ -654,7 +655,18 @@ export function aiConnectionService(db: Db) {
             status: "active",
             healthStatus: "ok",
             healthMessage: null,
-            config: { ...reconnect.connection.config, aiIsolatedSubscription: input.method === "subscription" && input.provider !== "anthropic" },
+            config: {
+              ...reconnect.connection.config,
+              ai: {
+                ...((reconnect.connection.config as Record<string, unknown> | null)?.ai as Record<string, unknown> | undefined),
+                provider: input.provider,
+                method: input.method,
+                ...("baseUrl" in input && input.baseUrl ? { baseUrl: input.baseUrl } : {}),
+                ...("defaultModel" in input && input.defaultModel ? { defaultModel: input.defaultModel } : {}),
+                ...("envKey" in input && input.envKey ? { envKey: input.envKey } : {}),
+              },
+              aiIsolatedSubscription: input.method === "subscription" && input.provider !== "anthropic",
+            },
             updatedAt: new Date(),
           })
           .where(eq(toolConnections.id, id));
@@ -677,7 +689,13 @@ export function aiConnectionService(db: Db) {
             healthStatus: "ok",
             config: {
               sourceTemplateKey: input.provider,
-              ai: { provider: input.provider, method: input.method },
+              ai: {
+                provider: input.provider,
+                method: input.method,
+                ...("baseUrl" in input && input.baseUrl ? { baseUrl: input.baseUrl } : {}),
+                ...("defaultModel" in input && input.defaultModel ? { defaultModel: input.defaultModel } : {}),
+                ...("envKey" in input && input.envKey ? { envKey: input.envKey } : {}),
+              },
               aiIsolatedSubscription: input.method === "subscription" && input.provider !== "anthropic",
             },
             createdByUserId: userId,

@@ -105,17 +105,19 @@ const adapterDisplayMap: Record<string, AdapterDisplayInfo> = {
     label: "Hermes Gateway",
     description: "Remote Hermes API server",
     icon: Bot,
-    hideFromVisualSelection: true,
+    hideFromVisualSelection: false,
   },
   hermes_local: {
     label: "Hermes",
     description: "Hermes harness",
     icon: Bot,
+    recommended: true,
   },
   opencode_local: {
     label: "OpenCode",
     description: "OpenCode multi-provider harness",
     icon: OpenCodeLogoIcon,
+    recommended: true,
   },
   pi_local: {
     label: "Pi",
