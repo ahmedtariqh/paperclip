@@ -47,7 +47,6 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import { pluginRegistryService } from "./plugin-registry.js";
 import { pluginStateStore } from "./plugin-state-store.js";
-import { pluginLifecycleInbox } from "./plugin-lifecycle-inbox.js";
 import { pluginDatabaseService } from "./plugin-database.js";
 import { pluginManagedAgentService } from "./plugin-managed-agents.js";
 import { pluginManagedRoutineService } from "./plugin-managed-routines.js";
@@ -758,7 +757,6 @@ export function buildHostServices(
   const approvalSvc = approvalService(db);
   const interactions = issueThreadInteractionService(db);
   const scopedBus = eventBus.forPlugin(pluginKey);
-  const lifecycleInbox = pluginLifecycleInbox(db, pluginId);
 
   // Track active session event subscriptions for cleanup
   const activeSubscriptions = new Set<{ unsubscribe: () => void; timer: ReturnType<typeof setTimeout> }>();
@@ -1559,12 +1557,6 @@ export function buildHostServices(
     },
 
     events: {
-      async listLifecycle(params) {
-        return lifecycleInbox.list(ensureCompanyId(params.companyId), params.limit, params.afterId);
-      },
-      async acknowledgeLifecycle(params) {
-        await lifecycleInbox.acknowledge(ensureCompanyId(params.companyId), params.eventId);
-      },
       async emit(params) {
         if (params.companyId) {
           await ensurePluginAvailableForCompany(params.companyId);

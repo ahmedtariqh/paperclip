@@ -1,5 +1,5 @@
 {
-  "id": "2f1c5aa1-f2a8-4c8e-adae-32abda705464",
+  "id": "dfa5064e-7b35-4d20-8a3d-aa808c4d92e0",
   "prevId": "0eac674e-f69a-4f25-b800-3be01b8fd28d",
   "version": "7",
   "dialect": "postgresql",
@@ -37125,89 +37125,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.plugin_lifecycle_acknowledgments": {
-      "name": "plugin_lifecycle_acknowledgments",
-      "schema": "",
-      "columns": {
-        "plugin_id": {
-          "name": "plugin_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "event_id": {
-          "name": "event_id",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "acknowledged_at": {
-          "name": "acknowledged_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "plugin_lifecycle_acknowledgments_event_idx": {
-          "name": "plugin_lifecycle_acknowledgments_event_idx",
-          "columns": [
-            {
-              "expression": "event_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "plugin_lifecycle_acknowledgments_plugin_id_plugins_id_fk": {
-          "name": "plugin_lifecycle_acknowledgments_plugin_id_plugins_id_fk",
-          "tableFrom": "plugin_lifecycle_acknowledgments",
-          "tableTo": "plugins",
-          "columnsFrom": [
-            "plugin_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "plugin_lifecycle_acknowledgments_event_id_resource_lifecycle_events_id_fk": {
-          "name": "plugin_lifecycle_acknowledgments_event_id_resource_lifecycle_events_id_fk",
-          "tableFrom": "plugin_lifecycle_acknowledgments",
-          "tableTo": "resource_lifecycle_events",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "plugin_lifecycle_acknowledgments_plugin_id_event_id_pk": {
-          "name": "plugin_lifecycle_acknowledgments_plugin_id_event_id_pk",
-          "columns": [
-            "plugin_id",
-            "event_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.plugin_logs": {
       "name": "plugin_logs",
       "schema": "",
@@ -39451,39 +39368,6 @@
           "columns": [
             {
               "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "resource_lifecycle_events_resource_order_idx": {
-          "name": "resource_lifecycle_events_resource_order_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "resource_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "resource_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
