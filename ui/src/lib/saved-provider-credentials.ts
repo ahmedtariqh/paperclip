@@ -11,12 +11,12 @@ export function savedManagedProviderAccounts(
   connections: AiManagedConnectionSummary[],
 ): SavedProviderKey[] {
   return connections.flatMap<SavedProviderKey>((account) => {
-    if (account.companyId !== companyId || account.provider !== provider || account.status !== "connected") return [];
+    if (account.companyId !== companyId || (account.provider !== provider && account.provider !== "custom") || account.status !== "connected") return [];
     if (account.ownership === "personal" && account.ownerUserId === currentUserId && account.isDefault) {
-      return [{ id: `ai:${account.grantId}`, label: `${account.name} (Your default)`, aiConnection: { provider, method: account.method, mode: "responsible_user" as const } }];
+      return [{ id: `ai:${account.grantId}`, label: `${account.name} (Your default)`, aiConnection: { provider: account.provider, method: account.method, mode: "responsible_user" as const } }];
     }
     if (account.ownership === "shared") {
-      return [{ id: `ai:${account.grantId}`, label: `${account.name} (Company shared)`, aiConnection: { provider, method: account.method, mode: "shared" as const, connectionId: account.id, grantId: account.grantId } }];
+      return [{ id: `ai:${account.grantId}`, label: `${account.name} (Company shared)`, aiConnection: { provider: account.provider, method: account.method, mode: "shared" as const, connectionId: account.id, grantId: account.grantId } }];
     }
     return [];
   });

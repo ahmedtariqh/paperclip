@@ -143,6 +143,7 @@ done`,
   let directory =
     typeof config.cwd === "string" ? path.resolve(config.cwd) : process.cwd();
   for (;;) {
+    if (directory === os.homedir()) break;
     for (const relative of files) {
       try {
         const content = await readFile(path.join(directory, relative), "utf8");
@@ -216,20 +217,18 @@ export async function prepareManagedAiRuntime(
     input.config.env && typeof input.config.env === "object"
       ? (input.config.env as Record<string, unknown>)
       : {};
-  for (const key of [
-    "ANTHROPIC_BASE_URL",
-    "OPENAI_BASE_URL",
-    "XAI_BASE_URL",
-    "CLAUDE_CODE_USE_BEDROCK",
-    "CLAUDE_CODE_USE_VERTEX",
-    "CLAUDE_CODE_USE_FOUNDRY",
-    "PAPERCLIP_OPENCODE_PROVIDERS",
-  ]) {
-    if (configuredEnv[key])
-      throw unprocessable(
-        "The configured provider routing is incompatible with this AI connection",
-        { code: "ai_connection_incompatible" },
-      );
+  if (input.binding.provider === "anthropic") {
+    for (const key of [
+      "CLAUDE_CODE_USE_BEDROCK",
+      "CLAUDE_CODE_USE_VERTEX",
+      "CLAUDE_CODE_USE_FOUNDRY",
+    ]) {
+      if (configuredEnv[key])
+        throw unprocessable(
+          "The configured provider routing is incompatible with this AI connection",
+          { code: "ai_connection_incompatible" },
+        );
+    }
   }
   await assertManagedAiProjectAuth(input.config, input.binding.provider);
   const service = aiConnectionService(db);
@@ -278,12 +277,48 @@ export async function prepareManagedAiRuntime(
       ...Object.fromEntries(AI_AUTH_ENV_KEYS.map((key) => [key, ""])),
       ...managedAiHomeEnvironment(home),
     };
+
+    const aiConfig = ((selection.connection.config as Record<string, unknown> | null)?.ai ?? {}) as Record<string, unknown>;
+    const connectionBaseUrl = (typeof aiConfig.baseUrl === "string" && aiConfig.baseUrl.trim().length > 0)
+      ? aiConfig.baseUrl.trim()
+      : undefined;
+    const connectionEnvKey = (typeof aiConfig.envKey === "string" && aiConfig.envKey.trim().length > 0)
+      ? aiConfig.envKey.trim()
+      : undefined;
+    const connectionDefaultModel = (typeof aiConfig.defaultModel === "string" && aiConfig.defaultModel.trim().length > 0)
+      ? aiConfig.defaultModel.trim()
+      : undefined;
+
+    // Restore any agent-configured custom routing that was in input.config.env
+    for (const key of [
+      "ANTHROPIC_BASE_URL",
+      "OPENAI_BASE_URL",
+      "XAI_BASE_URL",
+      "PAPERCLIP_OPENCODE_PROVIDERS",
+    ] as const) {
+      if (typeof configuredEnv[key] === "string" && (configuredEnv[key] as string).trim().length > 0) {
+        env[key] = (configuredEnv[key] as string).trim();
+      }
+    }
+
+    if (connectionBaseUrl) {
+      if (input.adapterType === "claude_local" || (input.adapterType === "paperclip_runner" && input.config.provider === "claude")) {
+        env.ANTHROPIC_BASE_URL = connectionBaseUrl;
+      } else {
+        env.OPENAI_BASE_URL = connectionBaseUrl;
+      }
+      if (!env.OPENAI_BASE_URL) env.OPENAI_BASE_URL = connectionBaseUrl;
+      if (!env.ANTHROPIC_BASE_URL && (input.binding.provider === "custom" || input.binding.provider === "anthropic")) {
+        env.ANTHROPIC_BASE_URL = connectionBaseUrl;
+      }
+    }
+
     const capability =
       AI_CONNECTION_CAPABILITIES[input.binding.provider].methods[
         selection.attribution.method
       ]!;
     const authFile = path.join(providerHome, "auth.json");
-    if (input.binding.provider === "openai")
+    if (input.binding.provider === "openai" || input.binding.provider === "custom")
       await writeFile(
         path.join(providerHome, "config.toml"),
         'cli_auth_credentials_store = "file"\n',
@@ -292,7 +327,7 @@ export async function prepareManagedAiRuntime(
     if (subscriptionFile) await writeFile(authFile, value, { mode: 0o600 });
     else env[capability.envKey] = value;
     if (
-      input.binding.provider === "openai" &&
+      (input.binding.provider === "openai" || input.binding.provider === "custom") &&
       selection.attribution.method === "api_key"
     ) {
       env.CODEX_API_KEY = value;
@@ -306,6 +341,35 @@ export async function prepareManagedAiRuntime(
       });
       env.OPENCODE_DISABLE_PROJECT_CONFIG = "true";
     }
+    if (input.binding.provider === "custom") {
+      if (connectionEnvKey) {
+        env[connectionEnvKey] = value;
+      }
+      if (input.adapterType === "claude_local" || (input.adapterType === "paperclip_runner" && input.config.provider === "claude")) {
+        env.ANTHROPIC_API_KEY = value;
+      } else {
+        env.OPENAI_API_KEY = value;
+      }
+      if (input.adapterType === "opencode_local" || (input.adapterType === "paperclip_runner" && input.config.provider === "opencode")) {
+        env.OPENCODE_ALLOW_ALL_MODELS = "1";
+        if (connectionBaseUrl) {
+          env.OPENCODE_CONFIG_CONTENT = JSON.stringify({
+            provider: {
+              custom: {
+                options: {
+                  baseURL: connectionBaseUrl,
+                  apiKey: value,
+                },
+              },
+            },
+          });
+          env.OPENCODE_DISABLE_PROJECT_CONFIG = "true";
+        }
+      }
+    }
+    if (connectionDefaultModel && input.adapterType === "claude_local" && !env.ANTHROPIC_MODEL) {
+      env.ANTHROPIC_MODEL = connectionDefaultModel;
+    }
     const generation = createHash("sha256")
       .update(value)
       .digest("hex")
@@ -316,6 +380,7 @@ export async function prepareManagedAiRuntime(
       sessionIdentity,
       config: {
         ...input.config,
+        ...(connectionDefaultModel && !input.config.model ? { model: connectionDefaultModel } : {}),
         env,
         managedAiConnection: { ...selection.attribution, identity, sessionIdentity },
       },

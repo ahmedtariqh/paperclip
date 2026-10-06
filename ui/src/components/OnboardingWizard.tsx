@@ -258,7 +258,15 @@ const API_KEY_ENV_KEYS: Record<string, string> = {
 };
 
 function apiKeyEnvKeyFor(adapterType: string, customEnvKey?: string): string {
-  if (customEnvKey?.trim()) return customEnvKey.trim();
+  if (
+    customEnvKey?.trim() &&
+    (adapterType === "opencode_local" ||
+      adapterType === "hermes_local" ||
+      adapterType === "hermes_gateway" ||
+      customEnvKey.trim() !== "OPENAI_API_KEY")
+  ) {
+    return customEnvKey.trim();
+  }
   return API_KEY_ENV_KEYS[adapterType] ?? "OPENAI_API_KEY";
 }
 
