@@ -3,7 +3,6 @@ import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { errorHandler } from "../middleware/index.js";
 import { issueRoutes } from "../routes/issues.js";
-import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const mockIssueService = vi.hoisted(() => ({
   getById: vi.fn(),
@@ -191,7 +190,7 @@ const projectGoal = {
   updatedAt: new Date("2026-03-20T00:00:00Z"),
 };
 
-sequentialDescribe("issue goal context routes", () => {
+describe("issue goal context routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAccessService.decide.mockResolvedValue({

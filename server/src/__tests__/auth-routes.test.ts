@@ -3,7 +3,6 @@ import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { errorHandler } from "../middleware/index.js";
 import { authRoutes } from "../routes/auth.js";
-import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 function createSelectChain(rows: unknown[]) {
   return {
@@ -52,7 +51,7 @@ function createApp(actor: Express.Request["actor"], row: Record<string, unknown>
   return app;
 }
 
-sequentialDescribe("auth routes", () => {
+describe("auth routes", () => {
   const baseUser = {
     id: "user-1",
     name: "Jane Example",

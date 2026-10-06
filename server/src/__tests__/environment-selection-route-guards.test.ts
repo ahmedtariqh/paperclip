@@ -5,7 +5,6 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { errorHandler } from "../middleware/index.js";
 import { projectRoutes } from "../routes/projects.js";
 import { issueRoutes } from "../routes/issues.js";
-import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const mockProjectService = vi.hoisted(() => ({
   create: vi.fn(),
@@ -165,7 +164,7 @@ async function closeServer(server: Server | null) {
   });
 }
 
-sequentialDescribe("execution environment route guards", () => {
+describe("execution environment route guards", () => {
   afterAll(async () => {
     await closeServer(projectServer);
     await closeServer(issueServer);

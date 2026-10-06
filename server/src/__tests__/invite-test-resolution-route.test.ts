@@ -1,7 +1,6 @@
 import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 function createSelectChain(rows: unknown[]) {
   const query = {
@@ -75,7 +74,7 @@ async function createApp(
   return app;
 }
 
-sequentialDescribe("GET /invites/:token/test-resolution", () => {
+describe("GET /invites/:token/test-resolution", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

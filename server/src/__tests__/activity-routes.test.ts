@@ -1,7 +1,6 @@
 import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const mockActivityService = vi.hoisted(() => ({
   list: vi.fn(),
@@ -102,7 +101,7 @@ async function requestApp(
   }
 }
 
-sequentialDescribe("activity routes", () => {
+describe("activity routes", () => {
   beforeEach(() => {
     for (const mock of Object.values(mockActivityService)) mock.mockReset();
     for (const mock of Object.values(mockHeartbeatService)) mock.mockReset();

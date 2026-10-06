@@ -2,7 +2,6 @@ import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { hoistModuleGraph } from "./helpers/hoist-module-graph.js";
-import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const mockIssueService = vi.hoisted(() => ({
   getById: vi.fn(),
@@ -192,7 +191,7 @@ function makeComment(overrides: Record<string, unknown> = {}) {
   };
 }
 
-sequentialDescribe("issue comment cancel routes", () => {
+describe("issue comment cancel routes", () => {
   const routeModules = hoistModuleGraph(registerModuleMocks, async () => {
     const [{ issueRoutes }, { errorHandler }] = await Promise.all([
       vi.importActual<typeof import("../routes/issues.js")>("../routes/issues.js"),

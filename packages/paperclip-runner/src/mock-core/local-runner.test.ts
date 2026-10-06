@@ -13,9 +13,7 @@ import {
   startLocalRunnerScenario,
 } from "./local-runner.js";
 
-// Vitest 5 removes the deprecated `sequential` suite option; `concurrent: false`
-// is the vitest-4-and-5-compatible replacement.
-describe("Local runner and fake harness", { concurrent: false }, () => {
+describe("Local runner and fake harness", () => {
   it("runs lifecycle, tool, file, structured-result, and process-exit events", async () => {
     const trace = await runLocalRunnerScenario({ scenario: "happy-path", delayMs: 1 });
     const eventTypes = trace.events.map((event) => event.eventType);

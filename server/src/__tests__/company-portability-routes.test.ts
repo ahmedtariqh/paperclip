@@ -1,7 +1,6 @@
 import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const mockCompanyService = vi.hoisted(() => ({
   list: vi.fn(),
@@ -335,7 +334,7 @@ const importMeta = {
   collisionStrategy: importRequest.collisionStrategy,
 };
 
-sequentialDescribe("company portability routes", () => {
+describe("company portability routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAgentService.getById.mockImplementation(async (id: string) => ({

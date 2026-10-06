@@ -2,7 +2,6 @@ import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpError } from "../errors.js";
-import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const mockIssueService = vi.hoisted(() => ({
   getById: vi.fn(),
@@ -318,7 +317,7 @@ async function waitForWakeup(assertion: () => void) {
   await vi.waitFor(assertion);
 }
 
-sequentialDescribe("issue comment reopen routes", () => {
+describe("issue comment reopen routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockIssueService.getById.mockReset();

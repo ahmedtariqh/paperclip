@@ -1,7 +1,6 @@
 import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const mockAccessService = vi.hoisted(() => ({
   isInstanceAdmin: vi.fn(),
@@ -91,7 +90,7 @@ async function createApp(actor: any, db: any = {} as any) {
   return app;
 }
 
-sequentialDescribe("cli auth routes", () => {
+describe("cli auth routes", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.doUnmock("../services/index.js");

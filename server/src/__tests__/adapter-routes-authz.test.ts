@@ -2,7 +2,6 @@ import express from "express";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ServerAdapterModule } from "../adapters/index.js";
-import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const mocks = vi.hoisted(() => {
   const externalRecords = new Map<string, any>();
@@ -259,7 +258,7 @@ function resetInstalledExternalAdapterState() {
   setOverridePaused("claude_local", false);
 }
 
-sequentialDescribe("adapter management route authorization", () => {
+describe("adapter management route authorization", () => {
   beforeEach(async () => {
     vi.resetModules();
     vi.doUnmock("../services/adapter-plugin-store.js");

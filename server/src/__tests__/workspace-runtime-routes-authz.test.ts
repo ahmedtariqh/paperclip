@@ -1,7 +1,6 @@
 import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const mockProjectService = vi.hoisted(() => ({
   create: vi.fn(),
@@ -203,7 +202,7 @@ function buildExecutionWorkspace(overrides: Record<string, unknown> = {}) {
   };
 }
 
-sequentialDescribe("workspace runtime service route authorization", () => {
+describe("workspace runtime service route authorization", () => {
   const projectId = "11111111-1111-4111-8111-111111111111";
   const workspaceId = "22222222-2222-4222-8222-222222222222";
   const executionWorkspaceId = "33333333-3333-4333-8333-333333333333";

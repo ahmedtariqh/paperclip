@@ -20,11 +20,10 @@ import {
   extractSecretRefBindingsFromConfig,
 } from "../services/plugin-secrets-handler.js";
 import { secretService } from "../services/secrets.js";
-import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const pluginId = "11111111-1111-4111-8111-111111111111";
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
-const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? sequentialDescribe : describe.skip;
+const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
 if (!embeddedPostgresSupport.supported) {
   console.warn(

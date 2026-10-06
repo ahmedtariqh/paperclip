@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_OPENCODE_LOCAL_MODEL } from "@paperclipai/adapter-opencode-local";
 import { LOW_TRUST_REVIEW_PRESET } from "@paperclipai/shared";
 import { hoistModuleGraph } from "./helpers/hoist-module-graph.js";
-import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 vi.mock("acpx/runtime", () => ({
   createAcpRuntime: vi.fn(),
@@ -268,7 +267,7 @@ async function requestApp(
   }
 }
 
-sequentialDescribe("agent permission routes", () => {
+describe("agent permission routes", () => {
   const routeModules = hoistModuleGraph(registerModuleMocks, async () => {
     const [{ errorHandler }, { agentRoutes }] = await Promise.all([
       vi.importActual<typeof import("../middleware/index.js")>("../middleware/index.js"),
