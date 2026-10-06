@@ -1,0 +1,12 @@
+CREATE TABLE "plugin_lifecycle_acknowledgments" (
+	"plugin_id" uuid NOT NULL,
+	"event_id" bigint NOT NULL,
+	"acknowledged_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "plugin_lifecycle_acknowledgments_plugin_id_event_id_pk" PRIMARY KEY("plugin_id","event_id")
+);
+--> statement-breakpoint
+ALTER TABLE "resource_lifecycle_events" DROP CONSTRAINT "resource_lifecycle_events_action_check";--> statement-breakpoint
+ALTER TABLE "plugin_lifecycle_acknowledgments" ADD CONSTRAINT "plugin_lifecycle_acknowledgments_plugin_id_plugins_id_fk" FOREIGN KEY ("plugin_id") REFERENCES "public"."plugins"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "plugin_lifecycle_acknowledgments" ADD CONSTRAINT "plugin_lifecycle_acknowledgments_event_id_resource_lifecycle_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."resource_lifecycle_events"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "plugin_lifecycle_acknowledgments_event_idx" ON "plugin_lifecycle_acknowledgments" USING btree ("event_id");--> statement-breakpoint
+ALTER TABLE "resource_lifecycle_events" ADD CONSTRAINT "resource_lifecycle_events_action_check" CHECK ("resource_lifecycle_events"."action" = 'create' OR ("resource_lifecycle_events"."resource_type" = 'project' AND "resource_lifecycle_events"."action" = 'update') OR ("resource_lifecycle_events"."resource_type" = 'agent' AND "resource_lifecycle_events"."action" IN ('pause', 'resume', 'terminate')));
