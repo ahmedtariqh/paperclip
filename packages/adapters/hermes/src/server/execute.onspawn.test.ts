@@ -113,6 +113,17 @@ describe("hermes-local adapter onSpawn forwarding", () => {
     expect(call[2]).toContainEqual(expect.stringContaining("Current task brief"));
   });
 
+  it("passes long prompts via --query-file - and stdin to avoid command line limits", async () => {
+    const { ctx } = makeCtx();
+    const longBrief = "x".repeat(5000);
+    const wake = { reason: "issue_assigned", issue: { id: "issue-1", description: longBrief } };
+    await execute({ ...ctx, context: { ...ctx.context, paperclipWake: wake } } as any);
+    const call = vi.mocked(serverUtils.runChildProcess).mock.calls.at(-1)!;
+    expect(call[2]).toEqual(expect.arrayContaining(["chat", "--query-file", "-"]));
+    expect(call[2]).not.toContain("-q");
+    expect(call[3].stdin).toContain(longBrief);
+  });
+
   it("runChildProcess opts type includes onSpawn", () => {
     // Type-level assertion: if onSpawn were removed from the type,
     // this file would fail to compile. The runtime test above catches

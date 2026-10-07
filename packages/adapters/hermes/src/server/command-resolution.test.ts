@@ -19,12 +19,15 @@ test("resolveHermesCommand falls back to command before default hermes binary", 
 
 test("testEnvironment accepts config.command when hermesCommand is absent", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "hermes-command-resolution-"));
-  const cliPath = path.join(tempDir, "fake-hermes");
+  const isWin = process.platform === "win32";
+  const cliPath = path.join(tempDir, isWin ? "fake-hermes.cmd" : "fake-hermes");
 
   try {
     await writeFile(
       cliPath,
-      "#!/bin/sh\necho fake-hermes 1.2.3\n",
+      isWin
+        ? "@echo off\r\necho fake-hermes 1.2.3\r\n"
+        : "#!/bin/sh\necho fake-hermes 1.2.3\n",
       "utf8",
     );
     await chmod(cliPath, 0o755);

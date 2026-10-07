@@ -438,7 +438,10 @@ export async function execute(
   // ── Build command args ─────────────────────────────────────────────────
   // Use -Q (quiet) to get clean output: just response + session_id line
   const useQuiet = cfgBoolean(config.quiet) === true; // default false
-  const args: string[] = ["chat", "-q", prompt];
+  const useQueryFileStdin = prompt.length > 4000;
+  const args: string[] = useQueryFileStdin
+    ? ["chat", "--query-file", "-"]
+    : ["chat", "-q", prompt];
   if (useQuiet) args.push("-Q");
 
   if (model) {
@@ -561,6 +564,7 @@ export async function execute(
     graceSec,
     onLog: wrappedOnLog,
     onSpawn: ctx.onSpawn,
+    ...(useQueryFileStdin ? { stdin: prompt } : {}),
   });
 
   // ── Parse output ───────────────────────────────────────────────────────

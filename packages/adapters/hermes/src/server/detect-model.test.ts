@@ -122,11 +122,12 @@ test("testEnvironment does not warn about missing API keys when Hermes config pr
     "  provider: openrouter",
     "  api_key: test-secret",
   ], async () => {
+    const pythonCmd = process.platform === "win32" ? "python" : "python3";
     const result = await testEnvironment({
       companyId: "company-test",
       adapterType: "hermes_local",
       config: {
-        hermesCommand: "python3",
+        hermesCommand: pythonCmd,
         model: "openrouter/gpt-4.1-mini",
       },
     });
@@ -145,11 +146,12 @@ test("testEnvironment describes provider-omitted runtime config without inventin
     "  base_url: https://example.invalid/litellm",
     "  api_key: test-secret",
   ], async () => {
+    const pythonCmd = process.platform === "win32" ? "python" : "python3";
     const result = await testEnvironment({
       companyId: "company-test",
       adapterType: "hermes_local",
       config: {
-        hermesCommand: "python3",
+        hermesCommand: pythonCmd,
         model: "oca/gpt-5.4",
       },
     });
@@ -169,11 +171,12 @@ test("testEnvironment does not warn about missing API keys when Hermes config pr
     "  base_url: https://example.invalid/litellm",
     "  api_key: test-secret",
   ], async () => {
+    const pythonCmd = process.platform === "win32" ? "python" : "python3";
     const result = await testEnvironment({
       companyId: "company-test",
       adapterType: "hermes_local",
       config: {
-        hermesCommand: "python3",
+        hermesCommand: pythonCmd,
         model: "oca/gpt-5.4",
       },
     });

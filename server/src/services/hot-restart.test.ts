@@ -127,6 +127,7 @@ describe("hot-restart path compatibility", () => {
         platform: "win32",
         runCommand: async (command, args) => {
           expect(command).toBe("powershell.exe");
+          expect(args.at(-1)).toContain('Get-CimInstance Win32_Process -Filter "ProcessId = 789"');
           expect(args.at(-1)).toContain("Get-Process -Id 789");
           return "2026-08-01T01:02:03.456Z\r\n";
         },

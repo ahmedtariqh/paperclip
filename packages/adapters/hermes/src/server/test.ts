@@ -34,7 +34,10 @@ async function checkCliInstalled(
 ): Promise<AdapterEnvironmentCheck | null> {
   try {
     // Try to run the command to see if it exists
-    await execFileAsync(command, ["--version"], { timeout: 10_000 });
+    await execFileAsync(command, ["--version"], {
+      timeout: 10_000,
+      shell: process.platform === "win32",
+    });
     return null; // OK — it ran successfully
   } catch (err: unknown) {
     const e = err as NodeJS.ErrnoException;
@@ -58,6 +61,7 @@ async function checkCliVersion(
   try {
     const { stdout } = await execFileAsync(command, ["--version"], {
       timeout: 10_000,
+      shell: process.platform === "win32",
     });
     const version = stdout.trim();
     if (version) {
@@ -84,26 +88,20 @@ async function checkCliVersion(
 }
 
 async function checkPython(): Promise<AdapterEnvironmentCheck | null> {
-  try {
-    const { stdout } = await execFileAsync("python3", ["--version"], {
-      timeout: 5_000,
-    });
-    const version = stdout.trim();
-    const match = version.match(/(\d+)\.(\d+)/);
-    if (match) {
-      const major = parseInt(match[1], 10);
-      const minor = parseInt(match[2], 10);
-      if (major < 3 || (major === 3 && minor < 10)) {
-        return {
-          level: "error",
-          message: `Python ${version} found — Hermes requires Python 3.10+`,
-          hint: "Upgrade Python to 3.10 or later",
-          code: "hermes_python_old",
-        };
-      }
+  const candidates = process.platform === "win32" ? ["python", "python3"] : ["python3", "python"];
+  let version = "";
+  let found = false;
+  for (const cmd of candidates) {
+    try {
+      const { stdout } = await execFileAsync(cmd, ["--version"], { timeout: 5_000 });
+      version = stdout.trim();
+      found = true;
+      break;
+    } catch {
+      // try next candidate
     }
-    return null; // OK
-  } catch {
+  }
+  if (!found) {
     return {
       level: "warn",
       message: "python3 not found in PATH",
@@ -111,6 +109,20 @@ async function checkPython(): Promise<AdapterEnvironmentCheck | null> {
       code: "hermes_python_missing",
     };
   }
+  const match = version.match(/(\d+)\.(\d+)/);
+  if (match) {
+    const major = parseInt(match[1], 10);
+    const minor = parseInt(match[2], 10);
+    if (major < 3 || (major === 3 && minor < 10)) {
+      return {
+        level: "error",
+        message: `Python ${version} found — Hermes requires Python 3.10+`,
+        hint: "Upgrade Python to 3.10 or later",
+        code: "hermes_python_old",
+      };
+    }
+  }
+  return null; // OK
 }
 
 function checkModel(

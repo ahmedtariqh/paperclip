@@ -202,9 +202,18 @@ export async function readProcessStartedAt(
 
   if (platform === "win32") {
     const script = [
-      `$process = Get-Process -Id ${pid} -ErrorAction Stop`,
-      "$process.StartTime.ToUniversalTime().ToString('o')",
-    ].join("; ");
+      "try {",
+      `  $cim = Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}" -ErrorAction Stop;`,
+      "  if ($cim -and $cim.CreationDate) {",
+      "    $cim.CreationDate.ToUniversalTime().ToString('o')",
+      "  } else {",
+      "    throw 'no creation date'",
+      "  }",
+      "} catch {",
+      `  $process = Get-Process -Id ${pid} -ErrorAction Stop;`,
+      "  $process.StartTime.ToUniversalTime().ToString('o')",
+      "}",
+    ].join(" ");
     let stdout: string;
     try {
       stdout = await runCommand("powershell.exe", [
